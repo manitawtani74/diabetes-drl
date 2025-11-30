@@ -455,7 +455,10 @@
             <form method="post" action="/analyze" enctype="multipart/form-data">
                 <div class="form-group">
                     <label for="file">Upload CSV File</label>
-                    <input type="file" id="file" name="file" accept=".csv" required>
+                    <input type="file" id="file" name="file" accept=".csv">
+                    <small style="color: #666; display: block; margin-top: 5px;">
+                        Leave empty to use the previously uploaded file and change only the time window.
+                    </small>
                     <small style="color: #666; display: block; margin-top: 5px;">
                         CSV must contain 'timestamp' (ISO8601) and 'glucose' (mg/dL) columns
                     </small>
@@ -531,6 +534,53 @@
                     </div>
                 </div>
                 
+                <div class="form-group">
+                    <label for="view_scope" class="form-label">Time Window</label>
+                    <select id="view_scope" name="view_scope" class="form-select" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 1em;">
+                        <option value="full" {% if view_scope == "full" or not view_scope %}selected{% endif %}>Whole file (all data)</option>
+                        <option value="day" {% if view_scope == "day" %}selected{% endif %}>Single day</option>
+                        <option value="range" {% if view_scope == "range" %}selected{% endif %}>Date range</option>
+                        <option value="month" {% if view_scope == "month" %}selected{% endif %}>Single month</option>
+                    </select>
+                    
+                    <!-- Single day -->
+                    <div id="view_day_container" style="display: none; margin-top: 10px;">
+                        <label for="view_day" class="form-label">Day to view</label>
+                        <input type="date" id="view_day" name="view_day" class="form-control" 
+                               {% if time_bounds %}min="{{ time_bounds.min_date }}" max="{{ time_bounds.max_date }}"{% endif %}
+                               value="{{ view_day if view_day else (time_bounds.min_date if time_bounds and time_bounds.min_date else '') }}"
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 1em;">
+                    </div>
+                    
+                    <!-- Date range -->
+                    <div id="view_range_container" style="display: none; margin-top: 10px;">
+                        <label class="form-label">Date range</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="date" id="view_start" name="view_start" class="form-control" 
+                                   {% if time_bounds %}min="{{ time_bounds.min_date }}" max="{{ time_bounds.max_date }}"{% endif %}
+                                   value="{{ view_start if view_start else (time_bounds.min_date if time_bounds and time_bounds.min_date else '') }}"
+                                   style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 1em;">
+                            <input type="date" id="view_end" name="view_end" class="form-control" 
+                                   {% if time_bounds %}min="{{ time_bounds.min_date }}" max="{{ time_bounds.max_date }}"{% endif %}
+                                   value="{{ view_end if view_end else (time_bounds.max_date if time_bounds and time_bounds.max_date else '') }}"
+                                   style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 1em;">
+                        </div>
+                    </div>
+                    
+                    <!-- Single month -->
+                    <div id="view_month_container" style="display: none; margin-top: 10px;">
+                        <label for="view_month" class="form-label">Month to view</label>
+                        <input type="month" id="view_month" name="view_month" class="form-control" 
+                               {% if time_bounds %}min="{{ time_bounds.min_month }}" max="{{ time_bounds.max_month }}"{% endif %}
+                               value="{{ view_month if view_month else (time_bounds.min_month if time_bounds and time_bounds.min_month else '') }}"
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 1em;">
+                    </div>
+                    
+                    <small class="text-muted" style="color: #666; display: block; margin-top: 5px;">
+                        Use these options to focus on a specific day, date range, or month when analyzing your CGM data.
+                    </small>
+                </div>
+                
                 <button type="submit">Analyze Data</button>
             </form>
         </div>
@@ -542,15 +592,21 @@
         </div>
         {% endif %}
         
+        <!-- Range Error Message -->
+        {% if range_error %}
+        <div class="alert alert-warning mt-3" style="background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; border-radius: 6px; margin: 20px 0;">
+            <strong>⚠️ Warning:</strong> {{ range_error }}
+        </div>
+        {% endif %}
+        
+        {% if metrics %}
         <!-- Disclaimer -->
-        {% if insights or metrics %}
         <div class="disclaimer-box">
             <strong>⚠️ Important:</strong> This tool is for educational and research purposes only. 
             It highlights patterns in your CGM data using rule-based calculations and has NOT been clinically validated. 
             It does NOT give medical advice. Do not change your insulin doses or treatment based on this report. 
             Always follow your diabetes care team.
         </div>
-        {% endif %}
         
         <!-- Target Warning -->
         {% if target_warning %}
@@ -581,7 +637,19 @@
             {% for insight in insights %}
             <div class="insight-card {{ insight.severity }}">
                 <div class="insight-title">{{ insight.title }}</div>
-                <div class="insight-message" style="white-space: pre-line;">{{ insight.message }}</div>
+                {% if insight.title == "Glucose Range Summary" and analysis_result and analysis_result.summary %}
+                    <div class="insight-message" style="white-space: pre-line;">
+                        Over this period ({{ analysis_result.summary.period_description }}):
+                        {% set lines = insight.message.split('\n') %}
+                        {% for line in lines[1:] if line.strip() and not line.startswith('Your highest') and not line.startswith('and your lowest') %}
+                            {{ line }}
+                        {% endfor %}
+                        {{ analysis_result.summary.highest_glucose_text }}
+                        {{ analysis_result.summary.lowest_glucose_text }}
+                    </div>
+                {% else %}
+                    <div class="insight-message" style="white-space: pre-line;">{{ insight.message }}</div>
+                {% endif %}
             </div>
             {% endfor %}
         </div>
@@ -633,7 +701,7 @@
                         Average Trust Score
                         <span class="info-badge" data-info-text="A 0.0–1.0 score our system assigns to each reading based on anomalies, gaps, and local patterns. Closer to 1.0 means the reading looked more reliable according to our rules.">?</span>
                     </div>
-                    <div class="health-metric-value">{{ sensor_health.avg_trust_score }}</div>
+                    <div class="health-metric-value">{{ sensor_health.avg_trust_score|human_number }}</div>
                 </div>
                 <div class="health-metric">
                     <div class="health-metric-label">
@@ -784,7 +852,7 @@
                         {% elif failure_prediction.sfri.sfri_score >= 0.5 %}#ff9800
                         {% elif failure_prediction.sfri.sfri_score >= 0.25 %}#ffc107
                         {% else %}#4caf50{% endif %};">
-                        {{ failure_prediction.sfri.sfri_score }}
+                        {{ failure_prediction.sfri.sfri_score|human_number }}
                     </div>
                     <div style="font-size: 1.2em; color: #666; margin-top: 10px;">
                         Risk Category: <strong>{{ failure_prediction.sfri.risk_category|upper }}</strong>
@@ -837,11 +905,11 @@
                 <div class="health-metrics-grid">
                     <div class="health-metric">
                         <div class="health-metric-label">Average Trust</div>
-                        <div class="health-metric-value">{{ failure_prediction.trust_trend.avg_trust }}</div>
+                        <div class="health-metric-value">{{ failure_prediction.trust_trend.avg_trust|human_number }}</div>
                     </div>
                     <div class="health-metric">
                         <div class="health-metric-label">Recent Average Trust</div>
-                        <div class="health-metric-value">{{ failure_prediction.trust_trend.recent_avg_trust }}</div>
+                        <div class="health-metric-value">{{ failure_prediction.trust_trend.recent_avg_trust|human_number }}</div>
                     </div>
                     <div class="health-metric">
                         <div class="health-metric-label">
@@ -849,7 +917,7 @@
                             <span class="info-badge" data-info-text="Whether the trust scores tended to increase or decrease over time. A downward slope can mean the sensor data is gradually looking less reliable.">?</span>
                         </div>
                         <div class="health-metric-value" style="color: {% if failure_prediction.trust_trend.trust_slope < 0 %}#f44336{% else %}#4caf50{% endif %};">
-                            {{ failure_prediction.trust_trend.trust_slope }}
+                            {{ failure_prediction.trust_trend.trust_slope|human_number }}
                         </div>
                     </div>
                     <div class="health-metric">
@@ -857,7 +925,7 @@
                             Trust Variance
                             <span class="info-badge" data-info-text="How much the trust score bounced around over time. Higher variance means the sensor reliability was more unstable.">?</span>
                         </div>
-                        <div class="health-metric-value">{{ failure_prediction.trust_trend.trust_variance }}</div>
+                        <div class="health-metric-value">{{ failure_prediction.trust_trend.trust_variance|human_number }}</div>
                     </div>
                     <div class="health-metric">
                         <div class="health-metric-label">Trend Direction</div>
@@ -894,7 +962,7 @@
                             Drift Magnitude
                             <span class="info-badge" data-info-text="How much the average glucose level moved between the start and end of this time range. Very large upward or downward drift can be a sign that the sensor behaviour is changing.">?</span>
                         </div>
-                        <div class="health-metric-value">{{ failure_prediction.drift.drift_magnitude_mgdl }} mg/dL</div>
+                        <div class="health-metric-value">{{ failure_prediction.drift.drift_magnitude_mgdl|human_number }} mg/dL</div>
                     </div>
                     <div class="health-metric">
                         <div class="health-metric-label">Drift Duration</div>
@@ -915,7 +983,7 @@
                             <span class="info-badge" data-info-text="A 0.0–1.0 score estimating how often the sensor showed compression-like patterns (sharp drops followed by quick recovery). Higher scores mean more compression-like events were detected.">?</span>
                         </div>
                         <div class="health-metric-value" style="color: {% if failure_prediction.compression_risk.compression_risk_score >= 0.75 %}#f44336{% elif failure_prediction.compression_risk.compression_risk_score >= 0.5 %}#ff9800{% else %}#4caf50{% endif %};">
-                            {{ failure_prediction.compression_risk.compression_risk_score }}
+                            {{ failure_prediction.compression_risk.compression_risk_score|human_number }}
                         </div>
                     </div>
                     <div class="health-metric">
@@ -944,11 +1012,11 @@
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
                         <div class="health-metric">
                             <div class="health-metric-label">Max Variance</div>
-                            <div class="health-metric-value">{{ failure_prediction.instability.max_variance }}</div>
+                            <div class="health-metric-value">{{ failure_prediction.instability.max_variance|human_number }}</div>
                         </div>
                         <div class="health-metric">
                             <div class="health-metric-label">Average Variance</div>
-                            <div class="health-metric-value">{{ failure_prediction.instability.avg_variance }}</div>
+                            <div class="health-metric-value">{{ failure_prediction.instability.avg_variance|human_number }}</div>
                         </div>
                         <div class="health-metric">
                             <div class="health-metric-label">Total Instability Duration</div>
@@ -965,7 +1033,7 @@
                     <div class="risk-zone">
                         <strong>{{ window.start }}</strong> to <strong>{{ window.end }}</strong>
                         <br>
-                        <small>Variance: {{ window.variance }} | Avg Trust: {{ window.avg_trust }}</small>
+                        <small>Variance: {{ window.variance|human_number }} | Avg Trust: {{ window.avg_trust|human_number }}</small>
                     </div>
                     {% endfor %}
                 </div>
@@ -1019,7 +1087,7 @@
                     Avg Trust Score
                     <span class="info-badge" data-info-text="Average of all trust scores (0.0–1.0) assigned by our rule-based system. Higher means the data looked more reliable overall.">?</span>
                 </div>
-                <div class="metric-value">{{ metrics.avg_trust_score }}</div>
+                <div class="metric-value">{{ metrics.avg_trust_score|human_number }}</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">
@@ -1106,72 +1174,80 @@
             </table>
         </div>
         {% endif %}
-    </div>
-    
-    <!-- Chart Script -->
-    {% if chart_data %}
-    <script>
-        const chartData = {{ chart_data | tojson }};
         
-        const ctx = document.getElementById('glucoseChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: chartData.timestamps,
-                datasets: [
-                    {
-                        label: 'Raw Glucose',
-                        data: chartData.raw_glucose,
-                        borderColor: 'rgb(255, 99, 132)',
-                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                        tension: 0.1,
-                        pointRadius: 2,
-                    },
-                    {
-                        label: 'Corrected Glucose',
-                        data: chartData.corrected_glucose,
-                        borderColor: 'rgb(54, 162, 235)',
-                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                        tension: 0.1,
-                        pointRadius: 2,
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: false,
-                        title: {
-                            display: true,
-                            text: 'Glucose (mg/dL)'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Time'
-                        },
-                        ticks: {
-                            maxTicksLimit: 20
-                        }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top',
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false,
-                    }
-                }
+        <!-- Chart Script -->
+        {% if chart_data %}
+        <script>
+            const chartData = {{ chart_data | tojson }};
+            
+            // Destroy existing chart if it exists
+            const existingChart = Chart.getChart('glucoseChart');
+            if (existingChart) {
+                existingChart.destroy();
             }
-        });
-    </script>
-    {% endif %}
+            
+            const ctx = document.getElementById('glucoseChart');
+            if (ctx) {
+                new Chart(ctx.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: chartData.timestamps,
+                        datasets: [
+                            {
+                                label: 'Raw Glucose',
+                                data: chartData.raw_glucose,
+                                borderColor: 'rgb(255, 99, 132)',
+                                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                                tension: 0.1,
+                                pointRadius: 2,
+                            },
+                            {
+                                label: 'Corrected Glucose',
+                                data: chartData.corrected_glucose,
+                                borderColor: 'rgb(54, 162, 235)',
+                                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                                tension: 0.1,
+                                pointRadius: 2,
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: 'Glucose (mg/dL)'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Time'
+                                },
+                                ticks: {
+                                    maxTicksLimit: 20
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                            }
+                        }
+                    }
+                });
+            }
+        </script>
+        {% endif %}
+        {% endif %}
     
     <!-- Info Badge Tooltip Script -->
     <script>
@@ -1195,6 +1271,35 @@
                     tooltip.style.display = "none";
                 });
             });
+        });
+    </script>
+    
+    <!-- Time Window Controls Script -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const viewScopeSelect = document.getElementById('view_scope');
+            const dayContainer = document.getElementById('view_day_container');
+            const rangeContainer = document.getElementById('view_range_container');
+            const monthContainer = document.getElementById('view_month_container');
+            
+            function updateViewControls() {
+                const value = viewScopeSelect ? viewScopeSelect.value : 'full';
+                
+                if (dayContainer) {
+                    dayContainer.style.display = value === 'day' ? 'block' : 'none';
+                }
+                if (rangeContainer) {
+                    rangeContainer.style.display = value === 'range' ? 'block' : 'none';
+                }
+                if (monthContainer) {
+                    monthContainer.style.display = value === 'month' ? 'block' : 'none';
+                }
+            }
+            
+            if (viewScopeSelect) {
+                viewScopeSelect.addEventListener('change', updateViewControls);
+                updateViewControls(); // initialize on load
+            }
         });
     </script>
 </body>

@@ -13,6 +13,72 @@ import statistics
 from .models import ProcessedReading
 
 
+def _format_time_12hour(dt: datetime) -> str:
+    """
+    Format datetime to 12-hour format with AM/PM, removing leading zeros.
+    
+    Examples:
+        "01:00" -> "1:00 AM"
+        "00:00" -> "12 AM"
+        "13:30" -> "1:30 PM"
+        "12:00" -> "12 PM"
+    """
+    hour = dt.hour
+    minute = dt.minute
+    
+    if hour == 0:
+        if minute == 0:
+            return "12 AM"
+        return f"12:{minute:02d} AM"
+    elif hour == 12:
+        if minute == 0:
+            return "12 PM"
+        return f"12:{minute:02d} PM"
+    elif hour < 12:
+        return f"{hour}:{minute:02d} AM"
+    else:
+        return f"{hour - 12}:{minute:02d} PM"
+
+
+def format_datetime_for_summary(dt: datetime) -> str:
+    """
+    Format datetime for summary text - always includes date and time.
+    
+    Args:
+        dt: Datetime to format
+        
+    Returns:
+        Formatted string: "1:00 PM on Jan 5, 2025"
+    """
+    time_str = _format_time_12hour(dt)
+    # Format date without leading zero on day: "Jan 5, 2025" instead of "Jan 05, 2025"
+    month_str = dt.strftime("%b")
+    day = dt.day  # No leading zero
+    year = dt.year
+    date_str = f"{month_str} {day}, {year}"
+    return f"{time_str} on {date_str}"
+
+
+def _format_datetime_with_context(dt: datetime, is_multi_day: bool) -> str:
+    """
+    Format datetime with appropriate context based on whether data spans multiple days.
+    
+    Args:
+        dt: Datetime to format
+        is_multi_day: True if dataset spans multiple days, False for single day
+        
+    Returns:
+        Formatted string: "at 1:00 PM on Jan 5, 2025" (always includes date now)
+    """
+    time_str = _format_time_12hour(dt)
+    # Format date without leading zero on day: "Jan 5, 2025" instead of "Jan 05, 2025"
+    month_str = dt.strftime("%b")
+    day = dt.day  # No leading zero
+    year = dt.year
+    date_str = f"{month_str} {day}, {year}"
+    return f"at {time_str} on {date_str}"
+
+
 @dataclass
 class Insight:
     """
@@ -131,8 +197,22 @@ def _generate_range_summary(
     min_glucose = min(glucose_values)
     max_idx = glucose_values.index(max_glucose)
     min_idx = glucose_values.index(min_glucose)
-    max_time = timestamps[max_idx].strftime("%H:%M")
-    min_time = timestamps[min_idx].strftime("%H:%M")
+    max_dt = timestamps[max_idx]
+    min_dt = timestamps[min_idx]
+    
+    # Detect if dataset spans multiple days
+    if timestamps:
+        first_date = timestamps[0].date()
+        last_date = timestamps[-1].date()
+        is_multi_day = (last_date - first_date).days > 0
+    else:
+        is_multi_day = False
+    
+    # Format timestamps with appropriate context
+    formatted_high_time = _format_time_12hour(max_dt)
+    formatted_low_time = _format_time_12hour(min_dt)
+    formatted_high_datetime = _format_datetime_with_context(max_dt, is_multi_day)
+    formatted_low_datetime = _format_datetime_with_context(min_dt, is_multi_day)
     
     # Build message with bullet points
     message_lines = ["Over this period:"]
@@ -149,9 +229,12 @@ def _generate_range_summary(
         message_lines.append(f"• Very low (<{very_low_thresh:.0f} mg/dL): {pct_below_very_low:.0f}%")
     
     message_lines.append("")
+    # Always include date in the summary text
+    highest_text = format_datetime_for_summary(max_dt)
+    lowest_text = format_datetime_for_summary(min_dt)
     message_lines.append(
-        f"Your highest glucose was {max_glucose:.0f} mg/dL at {max_time}, "
-        f"and your lowest was {min_glucose:.0f} mg/dL at {min_time}."
+        f"Your highest glucose was {max_glucose:.0f} mg/dL at {highest_text}, "
+        f"and your lowest was {min_glucose:.0f} mg/dL at {lowest_text}."
     )
     
     message = "\n".join(message_lines)
@@ -175,8 +258,13 @@ def _generate_range_summary(
             "pct_below_very_low": round(pct_below_very_low, 1),
             "max_glucose": round(max_glucose, 1),
             "min_glucose": round(min_glucose, 1),
-            "max_time": max_time,
-            "min_time": min_time,
+            "max_time": max_dt.strftime("%H:%M"),  # Keep original for backward compatibility
+            "min_time": min_dt.strftime("%H:%M"),  # Keep original for backward compatibility
+            "formatted_high_time": formatted_high_time,
+            "formatted_low_time": formatted_low_time,
+            "formatted_high_datetime": formatted_high_datetime,
+            "formatted_low_datetime": formatted_low_datetime,
+            "is_multi_day": is_multi_day,
         }
     )
 
@@ -356,23 +444,49 @@ def _detect_long_high_periods(
     longest = max(high_periods, key=lambda p: p["duration_minutes"])
     longest_hours = longest["duration_minutes"] / 60.0
     
-    # Determine time of day for longest period
-    longest_hour = longest["start"].hour
-    if 6 <= longest_hour < 12:
-        time_of_day = "morning"
-    elif 12 <= longest_hour < 18:
-        time_of_day = "afternoon"
-    elif 18 <= longest_hour < 22:
-        time_of_day = "evening"
-    else:
-        time_of_day = "night"
-    
     period_count = len(high_periods)
-    message = (
-        f"Glucose stayed above {high_thresh:.0f} mg/dL for more than 2 hours on {period_count} "
-        f"occasion{'s' if period_count > 1 else ''}. "
-        f"The longest period lasted {longest_hours:.1f} hours and occurred in the {time_of_day}."
-    )
+    
+    # Format duration nicely (0 or 1 decimal at most)
+    if longest_hours >= 20:
+        # Basically "all day" - don't mention specific hours or time of day
+        duration_text = "most of this day"
+        message = (
+            f"Glucose stayed above {high_thresh:.0f} mg/dL for more than 2 hours on {period_count} "
+            f"occasion{'s' if period_count > 1 else ''}. "
+            f"The longest period lasted {duration_text}."
+        )
+    elif longest_hours >= 12:
+        # Medium duration (12-20 hours) - round to whole hours, no time of day
+        rounded_hours = round(longest_hours)
+        message = (
+            f"Glucose stayed above {high_thresh:.0f} mg/dL for more than 2 hours on {period_count} "
+            f"occasion{'s' if period_count > 1 else ''}. "
+            f"The longest period lasted about {rounded_hours} hours."
+        )
+    else:
+        # Shorter duration (< 12 hours) - can mention time of day if available
+        # Round to 1 decimal or whole number
+        if longest_hours == round(longest_hours):
+            duration_text = f"{int(longest_hours)} hours"
+        else:
+            duration_text = f"{longest_hours:.1f} hours"
+        
+        # Determine time of day for longest period
+        longest_hour = longest["start"].hour
+        if 6 <= longest_hour < 12:
+            time_of_day = "morning"
+        elif 12 <= longest_hour < 18:
+            time_of_day = "afternoon"
+        elif 18 <= longest_hour < 22:
+            time_of_day = "evening"
+        else:
+            time_of_day = "night"
+        
+        message = (
+            f"Glucose stayed above {high_thresh:.0f} mg/dL for more than 2 hours on {period_count} "
+            f"occasion{'s' if period_count > 1 else ''}. "
+            f"The longest period lasted {duration_text} and occurred in the {time_of_day}."
+        )
     
     return Insight(
         title="Long High Glucose Periods",

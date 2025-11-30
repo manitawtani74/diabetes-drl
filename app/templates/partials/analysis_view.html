@@ -1,0 +1,650 @@
+{% if analysis_result %}
+    {% set metrics = analysis_result.metrics %}
+    {% set sensor_health = analysis_result.sensor_health %}
+    {% set bolus_risks = analysis_result.bolus_risks %}
+    {% set failure_prediction = analysis_result.failure_prediction %}
+    {% set insights = analysis_result.insights %}
+    {% set readings = analysis_result.readings %}
+    {% set chart_data = analysis_result.chart_data %}
+    {% set glucose_targets = analysis_result.glucose_targets %}
+    {% set target_warning = analysis_result.target_warning %}
+{% endif %}
+
+<!-- Disclaimer -->
+{% if insights or metrics %}
+<div class="disclaimer-box">
+    <strong>⚠️ Important:</strong> This tool is for educational and research purposes only. 
+    It highlights patterns in your CGM data using rule-based calculations and has NOT been clinically validated. 
+    It does NOT give medical advice. Do not change your insulin doses or treatment based on this report. 
+    Always follow your diabetes care team.
+</div>
+{% endif %}
+
+<!-- Target Warning -->
+{% if target_warning %}
+<div style="background: #fff3e0; border-left: 4px solid #ff9800; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <strong>⚠️ Note:</strong> {{ target_warning }}
+</div>
+{% endif %}
+
+<!-- Glucose Targets Summary -->
+{% if glucose_targets %}
+<div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <strong>Using your targets:</strong><br>
+    Time-in-Range = {{ glucose_targets.time_in_range_low|int }}–{{ glucose_targets.time_in_range_high|int }} mg/dL,<br>
+    Low &lt; {{ glucose_targets.low_threshold|int }} mg/dL, Very Low &lt; {{ glucose_targets.very_low_threshold|int }} mg/dL,<br>
+    High &gt; {{ glucose_targets.high_threshold|int }} mg/dL, Very High &gt; {{ glucose_targets.very_high_threshold|int }} mg/dL.
+</div>
+{% endif %}
+
+<!-- Key Insights Section -->
+{% if insights %}
+<div class="report-section">
+    <h2>💡 Key Insights (Easy-to-Understand Summary)</h2>
+    <p style="color: #666; margin-bottom: 25px; font-size: 1.05em;">
+        These points turn your CGM data into clear, simple patterns. 
+        They are NOT treatment instructions.
+    </p>
+    
+    {% for insight in insights %}
+    <div class="insight-card {{ insight.severity }}">
+        <div class="insight-title">{{ insight.title }}</div>
+        <div class="insight-message" style="white-space: pre-line;">{{ insight.message }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Sensor Health Report -->
+{% if sensor_health %}
+<div class="report-section">
+    <h2>📊 Sensor Health Report</h2>
+    <div class="helper-text">
+        <strong>What this means:</strong> This grade is calculated using simple rule-based logic that looks at anomalies, gaps, and trust scores. 
+        It is an experimental metric and has not been clinically tested. Use it only as a rough indication of how stable the sensor data appeared, 
+        not as a medical decision tool.
+    </div>
+    
+    <div style="text-align: center;">
+        {% if sensor_health.health_grade == "N/A" %}
+        <div style="background: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
+            <p style="color: #333; font-size: 1.1em; margin: 0;">
+                <strong>Not enough data:</strong> Not enough readings to compute a sensor health grade. 
+                Please upload a file with more data points.
+            </p>
+        </div>
+        {% else %}
+        <div class="health-grade grade-{{ sensor_health.health_grade }}">
+            {{ sensor_health.health_grade }}
+        </div>
+        <div class="grade-explanation">
+            <strong>Grade Explanation:</strong> Grade {{ sensor_health.health_grade }} is assigned using rule-based thresholds on anomaly rate, 
+            trust scores, gaps, and flatlines. {{ sensor_health.grade_explanation }}
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="health-metrics-grid">
+        <div class="health-metric">
+            <div class="health-metric-label">Total Readings</div>
+            <div class="health-metric-value">{{ sensor_health.total_readings }}</div>
+        </div>
+        <div class="health-metric">
+            <div class="health-metric-label">
+                Anomaly Ratio
+                <span class="info-badge" data-info-text="The percentage of sensor readings that looked unusual based on our rules (sudden jumps, flatlines, or compression-like patterns). A higher value means the sensor data looked less stable.">?</span>
+            </div>
+            <div class="health-metric-value">{{ sensor_health.anomaly_ratio_percent }}%</div>
+        </div>
+        <div class="health-metric">
+            <div class="health-metric-label">
+                Average Trust Score
+                <span class="info-badge" data-info-text="A 0.0–1.0 score our system assigns to each reading based on anomalies, gaps, and local patterns. Closer to 1.0 means the reading looked more reliable according to our rules.">?</span>
+            </div>
+            <div class="health-metric-value">{{ sensor_health.avg_trust_score }}</div>
+        </div>
+        <div class="health-metric">
+            <div class="health-metric-label">
+                Total Gap Time
+                <span class="info-badge" data-info-text="Total minutes where sensor readings were missing and had to be filled in with estimated values to keep the timeline continuous.">?</span>
+            </div>
+            <div class="health-metric-value">{{ sensor_health.total_gap_minutes }} min</div>
+        </div>
+        <div class="health-metric">
+            <div class="health-metric-label">
+                Flatline Duration
+                <span class="info-badge" data-info-text="Total time where the sensor stayed on almost the exact same value, which can mean the sensor was stuck and not tracking real changes.">?</span>
+            </div>
+            <div class="health-metric-value">{{ sensor_health.flatline_duration_minutes }} min</div>
+        </div>
+        <div class="health-metric">
+            <div class="health-metric-label">
+                ROC Anomalies
+                <span class="info-badge" data-info-text="Readings where the rate of change (how fast glucose changed) exceeded our rule-based threshold. This can indicate sudden spikes or drops.">?</span>
+            </div>
+            <div class="health-metric-value">{{ sensor_health.num_roc_anomalies }}</div>
+        </div>
+        <div class="health-metric">
+            <div class="health-metric-label">
+                Flatline Anomalies
+                <span class="info-badge" data-info-text="Readings where the sensor stayed on the same value for too long, which can mean the sensor was stuck.">?</span>
+            </div>
+            <div class="health-metric-value">{{ sensor_health.num_flatline_anomalies }}</div>
+        </div>
+        <div class="health-metric">
+            <div class="health-metric-label">
+                Compression Anomalies
+                <span class="info-badge" data-info-text="Readings that showed a sharp drop followed by quick recovery, which can happen when pressure is applied to the sensor site.">?</span>
+            </div>
+            <div class="health-metric-value">{{ sensor_health.num_compression_anomalies }}</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Bolus Risk Analysis -->
+{% if bolus_risks %}
+<div class="report-section">
+    <h2>⚠️ Bolus Risk Analysis</h2>
+    <div style="background: #fff3e0; padding: 15px; border-radius: 6px; border-left: 4px solid #ff9800;">
+        {% if bolus_risks.total_high_risk == 0 %}
+        <p style="margin: 0; color: #333;">✅ No high-risk readings detected. Sensor data appears generally reliable according to our rule-based analysis.</p>
+        {% else %}
+        <p style="margin: 0; color: #333;">⚠️ Some readings may be less trustworthy. Review the details below.</p>
+        {% endif %}
+    </div>
+    
+    <div class="risk-summary" style="white-space: pre-line;">
+        {{ bolus_risks.risk_summary }}
+    </div>
+    
+    {% if bolus_risks.high_risk_readings %}
+    <h3 style="margin-top: 30px; color: #333;">High-Risk Readings</h3>
+    <p style="color: #666; margin-bottom: 15px;">
+        These readings had lower trust scores in critical glucose ranges according to our rule-based checks. 
+        These patterns may be worth discussing with your diabetes care team. Do not make dosing decisions based solely on this analysis.
+    </p>
+    <div style="max-height: 400px; overflow-y: auto;">
+        <table class="risk-readings-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Raw Glucose (mg/dL)</th>
+                    <th>
+                        Corrected Glucose (mg/dL)
+                        <span class="info-badge" data-info-text="The glucose value after our system replaced low-trust readings with estimated values based on neighboring readings.">?</span>
+                    </th>
+                    <th>
+                        Trust Score
+                        <span class="info-badge" data-info-text="A 0.0–1.0 score our system assigns to each reading based on anomalies, gaps, and local patterns. Closer to 1.0 means the reading looked more reliable according to our rules.">?</span>
+                    </th>
+                    <th>Risk Level</th>
+                    <th>Risk Reason</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for reading in bolus_risks.high_risk_readings %}
+                <tr class="risk-level-{{ reading.risk_level }}">
+                    <td>{{ reading.timestamp }}</td>
+                    <td>{{ reading.raw_glucose }}</td>
+                    <td>{{ reading.corrected_glucose }}</td>
+                    <td>{{ reading.trust_score }}</td>
+                    <td>
+                        {% if reading.risk_level == 3 %}
+                        <strong>CRITICAL</strong>
+                        {% elif reading.risk_level == 2 %}
+                        <strong>HIGH</strong>
+                        {% else %}
+                        <strong>LOW</strong>
+                        {% endif %}
+                    </td>
+                    <td style="font-size: 0.9em;">{{ reading.risk_reason }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    
+    {% if bolus_risks.risk_zones %}
+    <h3 style="margin-top: 30px; color: #333;">
+        Risk Zones
+        <span class="info-badge" data-info-text="Time periods where the sensor data looked less reliable during very high or very low glucose. These are moments where extra caution is recommended and fingerstick checks are usually important.">?</span>
+    </h3>
+    <p style="color: #666; margin-bottom: 15px;">
+        Time periods with elevated risk due to unreliable readings:
+    </p>
+    {% for zone in bolus_risks.risk_zones %}
+    <div class="risk-zone">
+        <strong>{{ zone.start }}</strong> to <strong>{{ zone.end }}</strong>
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- CGM Failure Prediction -->
+{% if failure_prediction %}
+<div class="report-section">
+    <h2>🔮 CGM Failure Prediction</h2>
+    <div class="helper-text">
+        <strong>What this means:</strong> This section uses patterns like drift, instability, and compression-like events to estimate when the sensor 
+        might start behaving unreliably. These are rough, experimental predictions and are NOT guarantees. They have not been clinically validated.
+    </div>
+    
+    {% if failure_prediction.not_enough_data or not failure_prediction.sfri or failure_prediction.sfri.sfri_score is none %}
+    <div style="background: #fff3e0; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ff9800;">
+        <p style="color: #333; font-size: 1.1em; margin: 0;">
+            <strong>Not enough data:</strong> There were too few data points in this file to compute a meaningful failure prediction. 
+            Try using at least several hours or a full day of CGM data.
+        </p>
+    </div>
+    {% elif failure_prediction.sfri %}
+    <!-- SFRI Score -->
+    <div style="text-align: center; margin: 30px 0;">
+        <div style="margin-bottom: 15px;">
+            <h3 style="color: #333; margin-bottom: 10px;">
+                Sensor Failure Risk Index (SFRI)
+                <span class="info-badge" data-info-text="A 0.0–1.0 summary score of how likely the sensor looked like it might start giving unreliable readings soon, based on drift, instability, and anomalies. 0.0 is lowest risk, 1.0 is highest. This is experimental and not clinically validated.">?</span>
+            </h3>
+            <div style="font-size: 3em; font-weight: bold; 
+                color: {% if failure_prediction.sfri.sfri_score >= 0.75 %}#f44336
+                {% elif failure_prediction.sfri.sfri_score >= 0.5 %}#ff9800
+                {% elif failure_prediction.sfri.sfri_score >= 0.25 %}#ffc107
+                {% else %}#4caf50{% endif %};">
+                {{ failure_prediction.sfri.sfri_score }}
+            </div>
+            <div style="font-size: 1.2em; color: #666; margin-top: 10px;">
+                Risk Category: <strong>{{ failure_prediction.sfri.risk_category|upper }}</strong>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Time-To-Failure -->
+    {% if failure_prediction.ttf %}
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea;">
+        <h3 style="color: #333; margin-bottom: 15px;">
+            ⏱️ Time-To-Failure (TTF) Estimate
+            <span class="info-badge" data-info-text="A rough estimate of when the sensor might start behaving unreliably, based on current patterns. This is experimental and not a guarantee.">?</span>
+        </h3>
+        <div style="font-size: 1.5em; font-weight: bold; color: #333; margin-bottom: 10px;">
+            {{ failure_prediction.ttf.ttf_category }}
+        </div>
+        <div style="color: #666; margin-bottom: 10px;">
+            <strong>Confidence:</strong> {{ failure_prediction.ttf.ttf_confidence|title }}
+        </div>
+        <div style="color: #555; line-height: 1.6; white-space: pre-line;">
+            {{ failure_prediction.ttf.reasoning }}
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Risk Factors Breakdown -->
+    {% if failure_prediction.sfri.risk_factors %}
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="color: #333; margin-bottom: 15px;">Risk Factors Breakdown</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+            {% for factor, value in failure_prediction.sfri.risk_factors.items() %}
+            <div style="padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                <div style="font-size: 0.9em; color: #666; margin-bottom: 5px;">
+                    {{ factor|replace('_', ' ')|title }}
+                </div>
+                <div style="font-size: 1.3em; font-weight: bold; color: #333;">
+                    {{ value }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Trust Trend Analysis -->
+    {% if failure_prediction.trust_trend %}
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="color: #333; margin-bottom: 15px;">📈 Trust Trend Analysis</h3>
+        <div class="health-metrics-grid">
+            <div class="health-metric">
+                <div class="health-metric-label">Average Trust</div>
+                <div class="health-metric-value">{{ failure_prediction.trust_trend.avg_trust }}</div>
+            </div>
+            <div class="health-metric">
+                <div class="health-metric-label">Recent Average Trust</div>
+                <div class="health-metric-value">{{ failure_prediction.trust_trend.recent_avg_trust }}</div>
+            </div>
+            <div class="health-metric">
+                <div class="health-metric-label">
+                    Trust Slope
+                    <span class="info-badge" data-info-text="Whether the trust scores tended to increase or decrease over time. A downward slope can mean the sensor data is gradually looking less reliable.">?</span>
+                </div>
+                <div class="health-metric-value" style="color: {% if failure_prediction.trust_trend.trust_slope < 0 %}#f44336{% else %}#4caf50{% endif %};">
+                    {{ failure_prediction.trust_trend.trust_slope }}
+                </div>
+            </div>
+            <div class="health-metric">
+                <div class="health-metric-label">
+                    Trust Variance
+                    <span class="info-badge" data-info-text="How much the trust score bounced around over time. Higher variance means the sensor reliability was more unstable.">?</span>
+                </div>
+                <div class="health-metric-value">{{ failure_prediction.trust_trend.trust_variance }}</div>
+            </div>
+            <div class="health-metric">
+                <div class="health-metric-label">Trend Direction</div>
+                <div class="health-metric-value" style="color: {% if failure_prediction.trust_trend.trend_direction == 'degrading' %}#f44336{% elif failure_prediction.trust_trend.trend_direction == 'improving' %}#4caf50{% else %}#666{% endif %};">
+                    {{ failure_prediction.trust_trend.trend_direction|title }}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Drift Analysis -->
+    {% if failure_prediction.drift %}
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="color: #333; margin-bottom: 15px;">📊 Glucose Drift Analysis</h3>
+        <div class="health-metrics-grid">
+            <div class="health-metric">
+                <div class="health-metric-label">
+                    Drift Direction
+                    <span class="info-badge" data-info-text="Whether the average glucose level moved upward or downward over time. Upward drift means readings got higher, downward means they got lower.">?</span>
+                </div>
+                <div class="health-metric-value" style="color: {% if failure_prediction.drift.drift_direction == 'upward' %}#ff9800{% elif failure_prediction.drift.drift_direction == 'downward' %}#f44336{% else %}#4caf50{% endif %};">
+                    {{ failure_prediction.drift.drift_direction|title }}
+                </div>
+            </div>
+            <div class="health-metric">
+                <div class="health-metric-label">Drift Severity</div>
+                <div class="health-metric-value" style="color: {% if failure_prediction.drift.drift_severity == 'severe' %}#f44336{% elif failure_prediction.drift.drift_severity == 'moderate' %}#ff9800{% elif failure_prediction.drift.drift_severity == 'mild' %}#ffc107{% else %}#4caf50{% endif %};">
+                    {{ failure_prediction.drift.drift_severity|title }}
+                </div>
+            </div>
+            <div class="health-metric">
+                <div class="health-metric-label">
+                    Drift Magnitude
+                    <span class="info-badge" data-info-text="How much the average glucose level moved between the start and end of this time range. Very large upward or downward drift can be a sign that the sensor behaviour is changing.">?</span>
+                </div>
+                <div class="health-metric-value">{{ failure_prediction.drift.drift_magnitude_mgdl }} mg/dL</div>
+            </div>
+            <div class="health-metric">
+                <div class="health-metric-label">Drift Duration</div>
+                <div class="health-metric-value">{{ failure_prediction.drift.drift_duration_minutes }} min</div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Compression Risk -->
+    {% if failure_prediction.compression_risk %}
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="color: #333; margin-bottom: 15px;">⚠️ Compression-Low Risk</h3>
+        <div class="health-metrics-grid">
+            <div class="health-metric">
+                <div class="health-metric-label">
+                    Compression Risk Score
+                    <span class="info-badge" data-info-text="A 0.0–1.0 score estimating how often the sensor showed compression-like patterns (sharp drops followed by quick recovery). Higher scores mean more compression-like events were detected.">?</span>
+                </div>
+                <div class="health-metric-value" style="color: {% if failure_prediction.compression_risk.compression_risk_score >= 0.75 %}#f44336{% elif failure_prediction.compression_risk.compression_risk_score >= 0.5 %}#ff9800{% else %}#4caf50{% endif %};">
+                    {{ failure_prediction.compression_risk.compression_risk_score }}
+                </div>
+            </div>
+            <div class="health-metric">
+                <div class="health-metric-label">Compression Events</div>
+                <div class="health-metric-value">{{ failure_prediction.compression_risk.compression_events }}</div>
+            </div>
+            <div class="health-metric">
+                <div class="health-metric-label">Frequency (per hour)</div>
+                <div class="health-metric-value">{{ failure_prediction.compression_risk.compression_frequency }}</div>
+            </div>
+            <div class="health-metric">
+                <div class="health-metric-label">Risk Level</div>
+                <div class="health-metric-value" style="color: {% if failure_prediction.compression_risk.risk_level == 'critical' %}#f44336{% elif failure_prediction.compression_risk.risk_level == 'high' %}#ff9800{% elif failure_prediction.compression_risk.risk_level == 'moderate' %}#ffc107{% else %}#4caf50{% endif %};">
+                    {{ failure_prediction.compression_risk.risk_level|title }}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Instability Windows -->
+    {% if failure_prediction.instability and failure_prediction.instability.instability_windows %}
+    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="color: #333; margin-bottom: 15px;">🌊 Instability Windows</h3>
+        <div style="margin-bottom: 15px;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                <div class="health-metric">
+                    <div class="health-metric-label">Max Variance</div>
+                    <div class="health-metric-value">{{ failure_prediction.instability.max_variance }}</div>
+                </div>
+                <div class="health-metric">
+                    <div class="health-metric-label">Average Variance</div>
+                    <div class="health-metric-value">{{ failure_prediction.instability.avg_variance }}</div>
+                </div>
+                <div class="health-metric">
+                    <div class="health-metric-label">Total Instability Duration</div>
+                    <div class="health-metric-value">{{ failure_prediction.instability.instability_duration_minutes }} min</div>
+                </div>
+            </div>
+        </div>
+        {% if failure_prediction.instability.instability_windows|length > 0 %}
+        <p style="color: #666; margin-bottom: 15px;">
+            Time periods with high trust score variance (instability):
+        </p>
+        <div style="max-height: 300px; overflow-y: auto;">
+            {% for window in failure_prediction.instability.instability_windows %}
+            <div class="risk-zone">
+                <strong>{{ window.start }}</strong> to <strong>{{ window.end }}</strong>
+                <br>
+                <small>Variance: {{ window.variance }} | Avg Trust: {{ window.avg_trust }}</small>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Metrics Summary -->
+{% if metrics %}
+<div class="metrics">
+    <div class="metric-card">
+        <div class="metric-label">
+            Raw Readings
+            <span class="info-badge" data-info-text="Total number of glucose readings from your uploaded CSV file before any processing.">?</span>
+        </div>
+        <div class="metric-value">{{ metrics.num_raw_readings }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">
+            Processed Readings
+            <span class="info-badge" data-info-text="Number of readings after cleaning the stream (sorting, removing duplicates, and filling gaps).">?</span>
+        </div>
+        <div class="metric-value">{{ metrics.num_processed_readings }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">
+            Anomalies Detected
+            <span class="info-badge" data-info-text="Number of readings that looked unusual based on our rule-based checks (sudden jumps, flatlines, or compression-like patterns).">?</span>
+        </div>
+        <div class="metric-value">{{ metrics.num_anomalies }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">
+            Filled Gaps
+            <span class="info-badge" data-info-text="Number of missing time periods where the system filled in values between real readings to keep the timeline continuous.">?</span>
+        </div>
+        <div class="metric-value">{{ metrics.num_filled }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">
+            Corrected Readings
+            <span class="info-badge" data-info-text="Readings that were replaced by an estimated value because their trust score was very low according to our rules.">?</span>
+        </div>
+        <div class="metric-value">{{ metrics.num_corrected }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">
+            Avg Trust Score
+            <span class="info-badge" data-info-text="Average of all trust scores (0.0–1.0) assigned by our rule-based system. Higher means the data looked more reliable overall.">?</span>
+        </div>
+        <div class="metric-value">{{ metrics.avg_trust_score }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">
+            Min Trust Score
+            <span class="info-badge" data-info-text="The lowest trust score (0.0–1.0) found in your data, indicating the least reliable reading according to our rules.">?</span>
+        </div>
+        <div class="metric-value">{{ metrics.min_trust_score }}</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-label">
+            Max Trust Score
+            <span class="info-badge" data-info-text="The highest trust score (0.0–1.0) found in your data, indicating the most reliable reading according to our rules.">?</span>
+        </div>
+        <div class="metric-value">{{ metrics.max_trust_score }}</div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Chart -->
+{% if chart_data %}
+<div class="chart-container">
+    <h2>Glucose Over Time</h2>
+    <div class="chart-wrapper">
+        <canvas id="glucoseChart"></canvas>
+    </div>
+</div>
+{% endif %}
+
+<!-- Readings Table -->
+{% if readings %}
+<div class="readings-container">
+    <h2>Processed Readings</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Raw Glucose (mg/dL)</th>
+                <th>
+                    Corrected Glucose (mg/dL)
+                    <span class="info-badge" data-info-text="The glucose value after our system replaced low-trust readings with estimated values based on neighboring readings.">?</span>
+                </th>
+                <th>
+                    Trust Score
+                    <span class="info-badge" data-info-text="A 0.0–1.0 score our system assigns to each reading based on anomalies, gaps, and local patterns. Closer to 1.0 means the reading looked more reliable according to our rules.">?</span>
+                </th>
+                <th>Flags</th>
+                <th>Anomaly Reasons</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for reading in readings %}
+            <tr>
+                <td>{{ reading.timestamp }}</td>
+                <td>{{ reading.raw_glucose }}</td>
+                <td>
+                    {% if reading.corrected_glucose != reading.raw_glucose %}
+                    <strong style="color: #667eea;">{{ reading.corrected_glucose }}</strong>
+                    {% else %}
+                    {{ reading.corrected_glucose }}
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="trust-score 
+                        {% if reading.trust_score >= 0.7 %}trust-high
+                        {% elif reading.trust_score >= 0.4 %}trust-medium
+                        {% else %}trust-low{% endif %}">
+                        {{ reading.trust_score }}
+                    </span>
+                </td>
+                <td>
+                    {% if reading.is_anomaly %}
+                    <span class="badge badge-anomaly">Anomaly</span>
+                    {% endif %}
+                    {% if reading.is_filled %}
+                    <span class="badge badge-filled">Filled</span>
+                    {% endif %}
+                </td>
+                <td style="font-size: 0.9em; color: #666;">
+                    {{ reading.anomaly_reasons if reading.anomaly_reasons else "-" }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Chart Script -->
+{% if chart_data %}
+<script>
+    const chartData = {{ chart_data | tojson }};
+    
+    // Destroy existing chart if it exists
+    const existingChart = Chart.getChart('glucoseChart');
+    if (existingChart) {
+        existingChart.destroy();
+    }
+    
+    const ctx = document.getElementById('glucoseChart');
+    if (ctx) {
+        new Chart(ctx.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: chartData.timestamps,
+                datasets: [
+                    {
+                        label: 'Raw Glucose',
+                        data: chartData.raw_glucose,
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                        tension: 0.1,
+                        pointRadius: 2,
+                    },
+                    {
+                        label: 'Corrected Glucose',
+                        data: chartData.corrected_glucose,
+                        borderColor: 'rgb(54, 162, 235)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                        tension: 0.1,
+                        pointRadius: 2,
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        title: {
+                            display: true,
+                            text: 'Glucose (mg/dL)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        },
+                        ticks: {
+                            maxTicksLimit: 20
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                    }
+                }
+            }
+        });
+    }
+</script>
+{% endif %}
+

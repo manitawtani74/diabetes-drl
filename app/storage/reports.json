@@ -1,0 +1,474 @@
+[
+    {
+        "id": "bd9d7604-57c5-4282-bad4-910f74373388",
+        "created_at": "2025-11-30T14:36:14.415486Z",
+        "file_name": "test_stable_in_range.csv",
+        "analysis_name": null,
+        "grade": "A",
+        "anomaly_ratio": 0.0,
+        "avg_trust_score": null,
+        "time_in_range": 100.0,
+        "above_range": 0.0,
+        "below_range": 0.0,
+        "sfr_index": 0.03,
+        "risk_category": "low",
+        "raw_json": {
+            "file_info": {
+                "source": "uploaded_csv",
+                "file_name": "test_stable_in_range.csv",
+                "view_scope": "all",
+                "view_date": null
+            },
+            "targets": {
+                "time_in_range_low": 70.0,
+                "time_in_range_high": 180.0,
+                "low_threshold": 70.0,
+                "very_low_threshold": 54.0,
+                "high_threshold": 180.0,
+                "very_high_threshold": 250.0
+            },
+            "metrics": {
+                "num_raw_readings": 24,
+                "num_processed_readings": 24,
+                "num_anomalies": 0,
+                "num_filled": 0,
+                "num_corrected": 0,
+                "avg_trust_score": 1.0,
+                "min_trust_score": 1.0,
+                "max_trust_score": 1.0
+            },
+            "sensor_health": {
+                "total_readings": 24,
+                "num_anomalies": 0,
+                "num_flatline_anomalies": 0,
+                "num_roc_anomalies": 0,
+                "num_compression_anomalies": 0,
+                "num_gaps_filled": 0,
+                "total_gap_minutes": 0.0,
+                "flatline_duration_minutes": 0.0,
+                "avg_trust_score": 1.0,
+                "min_trust_score": 1.0,
+                "max_trust_score": 1.0,
+                "anomaly_ratio": 0.0,
+                "anomaly_ratio_percent": 0.0,
+                "health_grade": "A",
+                "grade_explanation": "Excellent sensor health. All metrics are within acceptable ranges."
+            },
+            "bolus_risks": {
+                "high_risk_readings": [],
+                "low_glucose_unreliable": 0,
+                "high_glucose_unreliable": 0,
+                "critical_low_unreliable": 0,
+                "critical_high_unreliable": 0,
+                "rapid_change_unreliable": 0,
+                "risk_zones": [],
+                "risk_summary": "✅ No high-risk readings detected. Sensor data appears generally reliable according to our rule-based analysis.",
+                "total_high_risk": 0
+            },
+            "failure_prediction": {
+                "trust_trend": {
+                    "avg_trust": 1.0,
+                    "trust_slope": 0.0,
+                    "trust_variance": 0.0,
+                    "recent_avg_trust": 1.0,
+                    "trend_direction": "stable"
+                },
+                "drift": {
+                    "drift_direction": "none",
+                    "drift_severity": "none",
+                    "drift_magnitude_mgdl": 2.5,
+                    "drift_start_index": null,
+                    "drift_duration_minutes": 0.0
+                },
+                "compression_risk": {
+                    "compression_risk_score": 0.0,
+                    "compression_events": 0,
+                    "compression_frequency": 0.0,
+                    "risk_level": "low",
+                    "compression_patterns": []
+                },
+                "instability": {
+                    "instability_windows": [],
+                    "max_variance": 0.0,
+                    "avg_variance": 0.0,
+                    "instability_duration_minutes": 0.0
+                },
+                "sfri": {
+                    "sfri_score": 0.03,
+                    "risk_factors": {
+                        "trust_trend": 0.03,
+                        "drift": 0.0,
+                        "compression": 0.0,
+                        "instability": 0.0
+                    },
+                    "risk_category": "low"
+                },
+                "ttf": {
+                    "ttf_category": "Low Risk",
+                    "ttf_confidence": "high",
+                    "reasoning": "No significant failure indicators detected. The sensor appears stable according to our rule-based analysis."
+                }
+            },
+            "insights": [
+                {
+                    "title": "Glucose Range Summary",
+                    "severity": "info",
+                    "message": "Over this period:\n• Time in range (70–180 mg/dL): 100%\n\nYour highest glucose was 140 mg/dL at 01:00, and your lowest was 110 mg/dL at 00:00.",
+                    "details": {
+                        "pct_in_range": 100.0,
+                        "pct_above_high": 0.0,
+                        "pct_above_very_high": 0.0,
+                        "pct_below_low": 0.0,
+                        "pct_below_very_low": 0.0,
+                        "max_glucose": 140.0,
+                        "min_glucose": 110.0,
+                        "max_time": "01:00",
+                        "min_time": "00:00"
+                    }
+                },
+                {
+                    "title": "Sensor Reliability Context",
+                    "severity": "info",
+                    "message": "The sensor data in this report had a high trust score (average: 1.00), meaning the readings were very reliable according to our rule-based analysis.",
+                    "details": {
+                        "avg_trust_score": 1.0,
+                        "reliability_level": "high"
+                    }
+                }
+            ],
+            "readings": [
+                {
+                    "timestamp": "2024-01-01T00:00:00",
+                    "raw_glucose": 110.0,
+                    "corrected_glucose": 110.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T00:05:00",
+                    "raw_glucose": 112.0,
+                    "corrected_glucose": 112.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T00:10:00",
+                    "raw_glucose": 115.0,
+                    "corrected_glucose": 115.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T00:15:00",
+                    "raw_glucose": 118.0,
+                    "corrected_glucose": 118.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T00:20:00",
+                    "raw_glucose": 120.0,
+                    "corrected_glucose": 120.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T00:25:00",
+                    "raw_glucose": 122.0,
+                    "corrected_glucose": 122.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T00:30:00",
+                    "raw_glucose": 125.0,
+                    "corrected_glucose": 125.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T00:35:00",
+                    "raw_glucose": 128.0,
+                    "corrected_glucose": 128.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T00:40:00",
+                    "raw_glucose": 130.0,
+                    "corrected_glucose": 130.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T00:45:00",
+                    "raw_glucose": 132.0,
+                    "corrected_glucose": 132.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T00:50:00",
+                    "raw_glucose": 135.0,
+                    "corrected_glucose": 135.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T00:55:00",
+                    "raw_glucose": 138.0,
+                    "corrected_glucose": 138.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T01:00:00",
+                    "raw_glucose": 140.0,
+                    "corrected_glucose": 140.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T01:05:00",
+                    "raw_glucose": 138.0,
+                    "corrected_glucose": 138.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T01:10:00",
+                    "raw_glucose": 135.0,
+                    "corrected_glucose": 135.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T01:15:00",
+                    "raw_glucose": 132.0,
+                    "corrected_glucose": 132.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T01:20:00",
+                    "raw_glucose": 130.0,
+                    "corrected_glucose": 130.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T01:25:00",
+                    "raw_glucose": 128.0,
+                    "corrected_glucose": 128.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T01:30:00",
+                    "raw_glucose": 125.0,
+                    "corrected_glucose": 125.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T01:35:00",
+                    "raw_glucose": 122.0,
+                    "corrected_glucose": 122.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T01:40:00",
+                    "raw_glucose": 120.0,
+                    "corrected_glucose": 120.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T01:45:00",
+                    "raw_glucose": 118.0,
+                    "corrected_glucose": 118.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T01:50:00",
+                    "raw_glucose": 115.0,
+                    "corrected_glucose": 115.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                },
+                {
+                    "timestamp": "2024-01-01T01:55:00",
+                    "raw_glucose": 112.0,
+                    "corrected_glucose": 112.0,
+                    "trust_score": 1.0,
+                    "is_anomaly": false,
+                    "anomaly_reasons": "",
+                    "is_filled": false
+                }
+            ],
+            "chart_data": {
+                "timestamps": [
+                    "2024-01-01T00:00:00",
+                    "2024-01-01T00:05:00",
+                    "2024-01-01T00:10:00",
+                    "2024-01-01T00:15:00",
+                    "2024-01-01T00:20:00",
+                    "2024-01-01T00:25:00",
+                    "2024-01-01T00:30:00",
+                    "2024-01-01T00:35:00",
+                    "2024-01-01T00:40:00",
+                    "2024-01-01T00:45:00",
+                    "2024-01-01T00:50:00",
+                    "2024-01-01T00:55:00",
+                    "2024-01-01T01:00:00",
+                    "2024-01-01T01:05:00",
+                    "2024-01-01T01:10:00",
+                    "2024-01-01T01:15:00",
+                    "2024-01-01T01:20:00",
+                    "2024-01-01T01:25:00",
+                    "2024-01-01T01:30:00",
+                    "2024-01-01T01:35:00",
+                    "2024-01-01T01:40:00",
+                    "2024-01-01T01:45:00",
+                    "2024-01-01T01:50:00",
+                    "2024-01-01T01:55:00"
+                ],
+                "raw_glucose": [
+                    110.0,
+                    112.0,
+                    115.0,
+                    118.0,
+                    120.0,
+                    122.0,
+                    125.0,
+                    128.0,
+                    130.0,
+                    132.0,
+                    135.0,
+                    138.0,
+                    140.0,
+                    138.0,
+                    135.0,
+                    132.0,
+                    130.0,
+                    128.0,
+                    125.0,
+                    122.0,
+                    120.0,
+                    118.0,
+                    115.0,
+                    112.0
+                ],
+                "corrected_glucose": [
+                    110.0,
+                    112.0,
+                    115.0,
+                    118.0,
+                    120.0,
+                    122.0,
+                    125.0,
+                    128.0,
+                    130.0,
+                    132.0,
+                    135.0,
+                    138.0,
+                    140.0,
+                    138.0,
+                    135.0,
+                    132.0,
+                    130.0,
+                    128.0,
+                    125.0,
+                    122.0,
+                    120.0,
+                    118.0,
+                    115.0,
+                    112.0
+                ],
+                "trust_scores": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0
+                ]
+            },
+            "glucose_targets": {
+                "time_in_range_low": 70.0,
+                "time_in_range_high": 180.0,
+                "low_threshold": 70.0,
+                "very_low_threshold": 54.0,
+                "high_threshold": 180.0,
+                "very_high_threshold": 250.0
+            },
+            "target_warning": null
+        }
+    }
+]

@@ -13,8 +13,10 @@ This is the main entry point for processing CGM data streams.
 """
 
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, date, time
+from calendar import monthrange
 import statistics
+import re
 
 from .models import RawReading, ProcessedReading
 
@@ -40,6 +42,312 @@ DEFAULT_GAP_THRESHOLD_MINUTES = 10
 DEFAULT_TRUST_CORRECTION_THRESHOLD = 0.4
 
 
+def format_datetime_for_summary(dt: datetime) -> str:
+    """
+    Format datetime for summary text - always includes date and time.
+    
+    Args:
+        dt: Datetime to format
+        
+    Returns:
+        Formatted string: "1:00 PM on Jan 5, 2025"
+    """
+    hour = dt.hour
+    minute = dt.minute
+    
+    # Format time in 12-hour format
+    if hour == 0:
+        time_str = "12:00 AM" if minute == 0 else f"12:{minute:02d} AM"
+    elif hour == 12:
+        time_str = "12:00 PM" if minute == 0 else f"12:{minute:02d} PM"
+    elif hour < 12:
+        time_str = f"{hour}:{minute:02d} AM"
+    else:
+        time_str = f"{hour - 12}:{minute:02d} PM"
+    
+    # Format date without leading zero on day
+    month_str = dt.strftime("%b")
+    day = dt.day
+    year = dt.year
+    date_str = f"{month_str} {day}, {year}"
+    
+    return f"{time_str} on {date_str}"
+
+
+def format_period_description(
+    view_scope: str,
+    first_ts: Optional[datetime],
+    last_ts: Optional[datetime],
+    view_day: Optional[str] = None,
+    view_start: Optional[str] = None,
+    view_end: Optional[str] = None,
+    view_month: Optional[str] = None
+) -> str:
+    """
+    Format a human-readable description of the analysis period.
+    
+    Args:
+        view_scope: One of "full", "day", "range", "month"
+        first_ts: First timestamp in the filtered data
+        last_ts: Last timestamp in the filtered data
+        view_day: Date string (YYYY-MM-DD) when view_scope == "day"
+        view_start: Start date string when view_scope == "range"
+        view_end: End date string when view_scope == "range"
+        view_month: Month string (YYYY-MM) when view_scope == "month"
+        
+    Returns:
+        Formatted string like "on Jan 5, 2025" or "from Jan 5, 2025 to Jan 12, 2025"
+    """
+    if view_scope == "day" and view_day:
+        try:
+            target_date = datetime.strptime(view_day, "%Y-%m-%d").date()
+            month_str = target_date.strftime("%b")
+            return f"on {month_str} {target_date.day}, {target_date.year}"
+        except (ValueError, AttributeError):
+            pass
+    
+    elif view_scope == "range" and view_start and view_end:
+        try:
+            start_date = datetime.strptime(view_start, "%Y-%m-%d").date()
+            end_date = datetime.strptime(view_end, "%Y-%m-%d").date()
+            start_str = f"{start_date.strftime('%b')} {start_date.day}, {start_date.year}"
+            end_str = f"{end_date.strftime('%b')} {end_date.day}, {end_date.year}"
+            return f"from {start_str} to {end_str}"
+        except (ValueError, AttributeError):
+            pass
+    
+    elif view_scope == "month" and view_month:
+        try:
+            year, month = map(int, view_month.split("-"))
+            month_name = datetime(year, month, 1).strftime("%B")
+            return f"in {month_name} {year}"
+        except (ValueError, AttributeError):
+            pass
+    
+    # Default: use actual data range
+    if first_ts and last_ts:
+        first_date = first_ts.date()
+        last_date = last_ts.date()
+        
+        if first_date == last_date:
+            # Single day
+            month_str = first_date.strftime("%b")
+            return f"on {month_str} {first_date.day}, {first_date.year}"
+        else:
+            # Date range
+            start_str = f"{first_date.strftime('%b')} {first_date.day}, {first_date.year}"
+            end_str = f"{last_date.strftime('%b')} {last_date.day}, {last_date.year}"
+            return f"from {start_str} to {end_str}"
+    
+    return "in the selected period"
+
+
+def _parse_date_string(date_str: str) -> date:
+    """
+    Robustly parse a date string in various formats.
+    
+    Supports:
+    - ISO format: "2025-01-03" (YYYY-MM-DD)
+    - US format: "01/03/2025" (MM/DD/YYYY)
+    - European format: "03/01/2025" (DD/MM/YYYY)
+    - Alternative separators: dots, dashes
+    
+    Args:
+        date_str: Date string in any supported format
+        
+    Returns:
+        date object
+        
+    Raises:
+        ValueError: If date string cannot be parsed
+    """
+    if not date_str or not date_str.strip():
+        raise ValueError("Empty date string")
+    
+    date_str = date_str.strip()
+    
+    # Try ISO format first (YYYY-MM-DD) - most common from HTML date inputs
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        pass
+    
+    # Try US format (MM/DD/YYYY or MM-DD-YYYY)
+    for sep in ['/', '-', '.']:
+        try:
+            parts = date_str.split(sep)
+            if len(parts) == 3:
+                # Try MM/DD/YYYY first (US format)
+                month, day, year = map(int, parts)
+                if 1 <= month <= 12 and 1 <= day <= 31 and 1900 <= year <= 2100:
+                    return date(year, month, day)
+        except (ValueError, IndexError):
+            continue
+    
+    # Try European format (DD/MM/YYYY or DD-MM-YYYY)
+    for sep in ['/', '-', '.']:
+        try:
+            parts = date_str.split(sep)
+            if len(parts) == 3:
+                # Try DD/MM/YYYY (European format)
+                day, month, year = map(int, parts)
+                if 1 <= month <= 12 and 1 <= day <= 31 and 1900 <= year <= 2100:
+                    return date(year, month, day)
+        except (ValueError, IndexError):
+            continue
+    
+    # If all else fails, try pandas to_datetime (very flexible)
+    try:
+        import pandas as pd
+        dt = pd.to_datetime(date_str, errors='raise')
+        if isinstance(dt, pd.Timestamp):
+            return dt.date()
+        elif isinstance(dt, datetime):
+            return dt.date()
+    except (ImportError, ValueError, TypeError):
+        pass
+    
+    raise ValueError(f"Could not parse date string: {date_str}")
+
+
+def parse_date_input(value: Optional[str]) -> Optional[date]:
+    """
+    Parse a date string from the HTML form into a date object.
+    
+    Accepts multiple common formats:
+    - 'YYYY-MM-DD' (ISO, what <input type="date"> sends)
+    - 'MM/DD/YYYY'
+    - 'DD/MM/YYYY'
+    
+    Returns None if parsing fails.
+    """
+    if not value:
+        return None
+    
+    value = value.strip()
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except ValueError:
+            continue
+    
+    # Debug while developing
+    print("parse_date_input: could not parse date string:", repr(value))
+    return None
+
+
+def filter_by_view_scope(
+    readings: List[ProcessedReading],
+    view_scope: str,
+    view_day: Optional[str] = None,
+    view_start: Optional[str] = None,
+    view_end: Optional[str] = None,
+    view_month: Optional[str] = None
+) -> List[ProcessedReading]:
+    """
+    Filter readings based on view scope using explicit datetime ranges.
+    
+    Args:
+        readings: List of processed readings
+        view_scope: One of "full", "whole_file", "day", "range", "month"
+        view_day: Date string (YYYY-MM-DD or other formats) when view_scope == "day"
+        view_start: Start date string (YYYY-MM-DD or other formats) when view_scope == "range"
+        view_end: End date string (YYYY-MM-DD or other formats) when view_scope == "range"
+        view_month: Month string (YYYY-MM) when view_scope == "month"
+        
+    Returns:
+        Filtered list of readings
+    """
+    # Debug
+    print(
+        "filter_by_view_scope called with:",
+        "view_scope =", view_scope,
+        "view_day =", view_day,
+        "view_start =", view_start,
+        "view_end =", view_end,
+        "view_month =", view_month,
+    )
+    
+    if not readings:
+        print("filter_by_view_scope: no readings provided, returning empty list")
+        return readings
+    
+    # --- WHOLE FILE / FULL ---------------------------------------------------
+    if view_scope in ("full", "whole_file"):
+        # Do not filter at all
+        print(f"filter_by_view_scope[{view_scope}]: using all rows: {len(readings)}")
+        return readings
+    
+    # --- SINGLE DAY ---------------------------------------------------------
+    if view_scope == "day" and view_day:
+        target = parse_date_input(view_day)
+        if target is None:
+            print("filter_by_view_scope[day]: invalid view_day, returning unfiltered readings")
+            return readings
+        
+        start_dt = datetime.combine(target, time.min)
+        end_dt = datetime.combine(target, time.max)
+        
+        filtered = [
+            r for r in readings
+            if start_dt <= r.timestamp <= end_dt
+        ]
+        
+        print(
+            f"filter_by_view_scope[day]: rows before = {len(readings)}, "
+            f"rows after = {len(filtered)}"
+        )
+        return filtered
+    
+    # --- DATE RANGE ---------------------------------------------------------
+    if view_scope == "range" and view_start and view_end:
+        start_date = parse_date_input(view_start)
+        end_date = parse_date_input(view_end)
+        if start_date is None or end_date is None:
+            print("filter_by_view_scope[range]: invalid range, returning unfiltered readings")
+            return readings
+        
+        start_dt = datetime.combine(start_date, time.min)
+        end_dt = datetime.combine(end_date, time.max)
+        
+        filtered = [
+            r for r in readings
+            if start_dt <= r.timestamp <= end_dt
+        ]
+        
+        print(
+            f"filter_by_view_scope[range]: rows before = {len(readings)}, "
+            f"rows after = {len(filtered)}"
+        )
+        return filtered
+    
+    # --- MONTH --------------------------------------------------------------
+    if view_scope == "month" and view_month:
+        try:
+            year, month = map(int, view_month.split("-"))
+            start_dt = datetime(year, month, 1)
+            last_day = monthrange(year, month)[1]
+            end_dt = datetime(year, month, last_day, 23, 59, 59)
+            
+            filtered = [
+                r for r in readings
+                if start_dt <= r.timestamp <= end_dt
+            ]
+            
+            print(
+                f"filter_by_view_scope[month]: rows before = {len(readings)}, "
+                f"rows after = {len(filtered)}"
+            )
+            return filtered
+        except Exception as e:
+            print(f"filter_by_view_scope[month]: failed for {view_month} -> {e}")
+            return readings
+    
+    # If the view_scope value is unknown, do not filter.
+    print(f"filter_by_view_scope: unknown view_scope '{view_scope}', returning unfiltered readings")
+    return readings
+
+
 def run_pipeline(
     raw_readings: List[RawReading],
     max_delta_mgdl: float = DEFAULT_MAX_DELTA_MGDL,
@@ -49,7 +357,12 @@ def run_pipeline(
     trust_correction_threshold: float = DEFAULT_TRUST_CORRECTION_THRESHOLD,
     glucose_targets: Optional[Dict[str, float]] = None,
     start_time: Optional[datetime] = None,
-    end_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None,
+    view_scope: str = "full",
+    view_day: Optional[str] = None,
+    view_start: Optional[str] = None,
+    view_end: Optional[str] = None,
+    view_month: Optional[str] = None
 ) -> tuple[List[ProcessedReading], Dict[str, Any]]:
     """
     Run the complete DRL pipeline on raw CGM readings.
@@ -126,18 +439,45 @@ def run_pipeline(
     # Step 5: Generate corrections
     processed = _generate_corrections(processed, trust_correction_threshold)
     
-    # Step 6: Compute summary metrics
-    basic_metrics = _compute_metrics(processed, raw_readings)
+    # Step 5.5: Filter by view scope if specified
+    filtered_processed = filter_by_view_scope(
+        processed,
+        view_scope=view_scope,
+        view_day=view_day,
+        view_start=view_start,
+        view_end=view_end,
+        view_month=view_month
+    )
     
-    # Step 7: Compute sensor health report
-    sensor_health = compute_sensor_health_report(processed)
+    if not filtered_processed:
+        # Return a special structure indicating no data
+        return [], {
+            "has_data": False,
+            "error": "NO_DATA_IN_RANGE",
+            "basic_metrics": _empty_metrics(),
+            "sensor_health": {},
+            "bolus_risks": {},
+            "failure_prediction": {},
+            "insights": [],
+            "summary": {
+                "period_description": "No data in selected window",
+                "highest_glucose_text": "",
+                "lowest_glucose_text": "",
+            },
+        }
     
-    # Step 8: Analyze bolus risks
-    bolus_risks = analyze_bolus_risks(processed, glucose_targets=glucose_targets)
+    # Step 6: Compute summary metrics (using filtered data)
+    basic_metrics = _compute_metrics(filtered_processed, raw_readings)
     
-    # Step 9: Predict failure (only if we have enough data)
-    if len(processed) >= 5:
-        failure_prediction = predict_failure(processed)
+    # Step 7: Compute sensor health report (using filtered data)
+    sensor_health = compute_sensor_health_report(filtered_processed)
+    
+    # Step 8: Analyze bolus risks (using filtered data)
+    bolus_risks = analyze_bolus_risks(filtered_processed, glucose_targets=glucose_targets)
+    
+    # Step 9: Predict failure (only if we have enough data, using filtered data)
+    if len(filtered_processed) >= 5:
+        failure_prediction = predict_failure(filtered_processed)
     else:
         failure_prediction = {
             "not_enough_data": True,
@@ -152,11 +492,36 @@ def run_pipeline(
             },
         }
     
-    # Step 10: Generate patient-friendly insights
-    insights = generate_glucose_insights(processed, glucose_targets=glucose_targets)
+    # Step 10: Generate patient-friendly insights (using filtered data)
+    insights = generate_glucose_insights(filtered_processed, glucose_targets=glucose_targets)
     
-    return processed, {
+    # Step 11: Find highest and lowest glucose values for summary text
+    # (filtered_processed is guaranteed to be non-empty at this point)
+    glucose_values = [r.corrected_glucose for r in filtered_processed]
+    max_glucose = max(glucose_values)
+    min_glucose = min(glucose_values)
+    max_idx = glucose_values.index(max_glucose)
+    min_idx = glucose_values.index(min_glucose)
+    max_dt = filtered_processed[max_idx].timestamp
+    min_dt = filtered_processed[min_idx].timestamp
+    
+    highest_glucose_text = f"Your highest glucose was {max_glucose:.0f} mg/dL at {format_datetime_for_summary(max_dt)}."
+    lowest_glucose_text = f"Your lowest was {min_glucose:.0f} mg/dL at {format_datetime_for_summary(min_dt)}."
+    
+    # Compute period description from actual filtered data range
+    first_ts_filtered = filtered_processed[0].timestamp
+    last_ts_filtered = filtered_processed[-1].timestamp
+    # Use actual filtered data range for period description
+    period_description = f"from {first_ts_filtered.strftime('%b %d, %Y')} to {last_ts_filtered.strftime('%b %d, %Y')}"
+    
+    return filtered_processed, {
+        "has_data": True,
         "basic_metrics": basic_metrics,
+        "summary": {
+            "period_description": period_description,
+            "highest_glucose_text": highest_glucose_text,
+            "lowest_glucose_text": lowest_glucose_text,
+        },
         "sensor_health": sensor_health,
         "bolus_risks": bolus_risks,
         "failure_prediction": failure_prediction,
