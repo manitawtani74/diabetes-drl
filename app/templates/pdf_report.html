@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>DRL Analysis Report</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 1in;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.4;
+            color: #333;
+        }
+        h1 {
+            color: #2196f3;
+            border-bottom: 3px solid #2196f3;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 5px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        h3 {
+            color: #666;
+            margin-top: 15px;
+            margin-bottom: 8px;
+        }
+        .header-info {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .header-info p {
+            margin: 5px 0;
+        }
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .metric-label {
+            font-weight: bold;
+        }
+        .metric-value {
+            color: #2196f3;
+        }
+        .insight-box {
+            background: #f9f9f9;
+            border-left: 4px solid #2196f3;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .insight-title {
+            font-weight: bold;
+            color: #2196f3;
+            margin-bottom: 5px;
+        }
+        .warning-box {
+            background: #fff3e0;
+            border-left: 4px solid #ff9800;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .disclaimer {
+            background: #ffebee;
+            border: 2px solid #f44336;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-size: 9pt;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background: #f5f5f5;
+            font-weight: bold;
+        }
+        .grade-box {
+            text-align: center;
+            font-size: 48pt;
+            font-weight: bold;
+            padding: 20px;
+            border: 3px solid #2196f3;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Diabetes Reliability Layer (DRL) Analysis Report</h1>
+    
+    <div class="disclaimer">
+        <strong>⚠️ IMPORTANT:</strong> This report is for educational and research purposes only. 
+        It uses rule-based calculations that have NOT been clinically validated. 
+        This does NOT constitute medical advice. Do not make treatment decisions based on this report.
+    </div>
+    
+    <div class="header-info">
+        <p><strong>Analysis Scope:</strong> {{ view_scope|upper }} {% if view_date %}({{ view_date }}){% endif %}</p>
+        <p><strong>View Mode:</strong> {{ view_mode|title }}</p>
+        <p><strong>Glucose Targets:</strong> 
+            Time-in-Range: {{ glucose_targets.time_in_range_low|int }}-{{ glucose_targets.time_in_range_high|int }} mg/dL,
+            Low: &lt;{{ glucose_targets.low_threshold|int }} mg/dL,
+            High: &gt;{{ glucose_targets.high_threshold|int }} mg/dL
+        </p>
+        <p><strong>Generated:</strong> {{ "now"|date("%Y-%m-%d %H:%M:%S") }}</p>
+    </div>
+    
+    {% if insights %}
+    <h2>Key Insights</h2>
+    {% for insight in insights %}
+    <div class="insight-box">
+        <div class="insight-title">{{ insight.title }}</div>
+        <div>{{ insight.message }}</div>
+    </div>
+    {% endfor %}
+    {% endif %}
+    
+    {% if basic_metrics %}
+    <h2>Summary Metrics</h2>
+    <table>
+        <tr>
+            <th>Metric</th>
+            <th>Value</th>
+        </tr>
+        <tr>
+            <td>Raw Readings</td>
+            <td>{{ basic_metrics.num_raw_readings }}</td>
+        </tr>
+        <tr>
+            <td>Processed Readings</td>
+            <td>{{ basic_metrics.num_processed_readings }}</td>
+        </tr>
+        <tr>
+            <td>Anomalies Detected</td>
+            <td>{{ basic_metrics.num_anomalies }}</td>
+        </tr>
+        <tr>
+            <td>Filled Gaps</td>
+            <td>{{ basic_metrics.num_filled_gaps }}</td>
+        </tr>
+        <tr>
+            <td>Average Trust Score</td>
+            <td>{{ "%.3f"|format(basic_metrics.avg_trust_score) }}</td>
+        </tr>
+    </table>
+    {% endif %}
+    
+    {% if sensor_health and sensor_health.health_grade != "N/A" %}
+    <h2>Sensor Health Report</h2>
+    <div class="grade-box">{{ sensor_health.health_grade }}</div>
+    <p><strong>Grade Explanation:</strong> {{ sensor_health.grade_explanation }}</p>
+    {% endif %}
+    
+    {% if bolus_risks %}
+    <h2>Bolus Risk Analysis</h2>
+    <div class="warning-box" style="white-space: pre-line;">{{ bolus_risks.risk_summary }}</div>
+    {% endif %}
+    
+    {% if failure_prediction and failure_prediction.sfri %}
+    <h2>CGM Failure Prediction</h2>
+    <p><strong>Sensor Failure Risk Index (SFRI):</strong> {{ failure_prediction.sfri.sfri_score }}</p>
+    <p><strong>Risk Category:</strong> {{ failure_prediction.sfri.risk_category|upper }}</p>
+    {% if failure_prediction.ttf %}
+    <p><strong>Time to Failure:</strong> {{ failure_prediction.ttf.ttf_category }}</p>
+    <p><strong>Reasoning:</strong> {{ failure_prediction.ttf.reasoning }}</p>
+    {% endif %}
+    {% endif %}
+    
+    <div class="disclaimer" style="margin-top: 40px;">
+        <p><strong>Report Limitations:</strong></p>
+        <ul>
+            <li>This analysis is based on rule-based algorithms and has not been clinically validated.</li>
+            <li>Results should be interpreted in consultation with a healthcare provider.</li>
+            <li>Do not use this report to make insulin dosing decisions.</li>
+        </ul>
+    </div>
+</body>
+</html>
+
